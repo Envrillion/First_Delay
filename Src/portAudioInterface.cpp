@@ -6,9 +6,25 @@
 // Callback
 int audioCallback(const void* input, void* output, unsigned long samples, const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
 {
-//Todo
+	const float *in = (const float*)input;
+	float *out = (float*)output;
+	Delay *delay = (Delay*)userData;
+	float delaySample;
 
-	return 0;
+	for(unsigned int i = 0; i < samples; ++i)
+	{
+		// left channel
+		delaySample = delay->read();
+		delay->write(*in);
+		*out++ = delay->processSample(*in++, delaySample);
+
+		// right channel
+		delaySample = delay->read();
+		delay->write(*in);
+		*out++ = delay->processSample(*in++, delaySample);
+	}
+
+	return paContinue;
 }
 
 // PortAudio interface
@@ -59,7 +75,7 @@ bool PaInterface::initialize(const int inChannels, const int outChannels, void* 
 
 	if(err != paNoError)
 	{
-		errorHandler(error);
+		errorHandler(err);
 		return false;
 	}
 
@@ -128,14 +144,46 @@ void PaInterface::errorHandler(PaError errorCode)
 
 bool PaInterface::getInputDevice(PaStreamParameters& streamParams, const int nbChannels)
 {
-//Todo
+	PaDeviceIndex inputDevice = Pa_GetDefaultInputDevice();
+	if(inputDevice == paNoDevice)
+	{
+		std::cerr << "Error: no default input device" << std::endl;
+		return false;
+	}
+
+	const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(inputDevice);
+	const PaHostApiInfo *hostApiInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
+
+	std::cout << "Opening audio input device: " << hostApiInfo->name << " " << deviceInfo->name << std::endl;
+
+	streamParams.device = inputDevice;
+	streamParams.channelCount = nbChannels;
+	streamParams.sampleFormat = paFloat32;
+	streamParams.suggestedLatency = deviceInfo->defaultLowInputLatency;
+	streamParams.hostApiSpecificStreamInfo = NULL;
 
 	return true;
 }
 
-bool PaInterface::getInputDevice(PaStreamParameters& streamParams, const int nbChannels)
+bool PaInterface::getOutputDevice(PaStreamParameters& streamParams, const int nbChannels)
 {
-//Todo
+	PaDeviceIndex outputDevice = Pa_GetDefaultOutputDevice();
+	if(outputDevice == paNoDevice)
+	{
+		std::cout << "Error: no default output device" << std::endl;
+		return false;
+	}
+
+	const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(outputDevice);
+	const PaHostApiInfo *hostApiInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
+
+	std::cout << "Opening audio output device: " << hostApiInfo->name << " " << deviceInfo->name << std::endl;
+
+	streamParams.device = outputDevice;
+	streamParams.channelCount = nbChannels;
+	streamParams.sampleFormat = paFloat32;
+	streamParams.suggestedLatency = deviceInfo->defaultLowOutputLatency;
+	streamParams.hostApiSpecificStreamInfo = NULL;
 
 	return true;
 }
